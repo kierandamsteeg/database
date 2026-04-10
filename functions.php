@@ -1,73 +1,80 @@
 <?php
 /**
- * Utility functions for NAW management system
- * Contains reusable functions for validation and sanitization
+ * Helper functions for NAW system
  */
 
-require_once 'config.php';
-
-/**
- * Sanitize user input to prevent XSS attacks
- * 
- * @param string $data Raw input data
- * @return string Sanitized data
- */
-function sanitizeInput($data) {
+// Clean user input (security)
+function clean($data) {
     $data = trim($data);
     $data = stripslashes($data);
-    $data = htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
+    $data = htmlspecialchars($data);
     return $data;
 }
 
-/**
- * Validate email address format
- * 
- * @param string $email Email to validate
- * @return bool True if valid, false otherwise
- */
-function validateEmail($email) {
-    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+// Get all customers from database
+function getAllCustomers($db) {
+    $stmt = $db->query("SELECT * FROM customers ORDER BY last_name");
+    return $stmt->fetchAll();
 }
 
-/**
- * Validate Dutch postal code format (1234 AB)
- * 
- * @param string $postalCode Postal code to validate
- * @return bool True if valid, false otherwise
- */
-function validatePostalCode($postalCode) {
-    $pattern = '/^[1-9][0-9]{3}\s?[A-Za-z]{2}$/';
-    return preg_match($pattern, $postalCode) === 1;
+// SEARCH customers by name or city
+function searchCustomers($db, $searchWord) {
+    $word = "%$searchWord%"; // % = wildcard (zoekt overal in tekst)
+    
+    $sql = "SELECT * FROM customers 
+            WHERE first_name LIKE ? 
+            OR last_name LIKE ? 
+            OR city LIKE ? 
+            ORDER BY last_name";
+    
+    $stmt = $db->prepare($sql);
+    $stmt->execute([$word, $word, $word]);
+    return $stmt->fetchAll();
 }
 
-/**
- * Display Bootstrap alert message
- * 
- * @param string $message Message to display
- * @param string $type Alert type (success, danger, warning, info)
- * @return string HTML alert element
- */
-function showAlert($message, $type = 'info') {
-    return "<div class='alert alert-{$type} alert-dismissible fade show' role='alert'>
-                {$message}
-                <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
-            </div>";
+// Get one customer by ID
+function getCustomer($db, $id) {
+    $stmt = $db->prepare("SELECT * FROM customers WHERE id = ?");
+    $stmt->execute([$id]);
+    return $stmt->fetch();
 }
 
-/**
- * Redirect to specified page with optional message
- * 
- * @param string $page Page to redirect to
- * @param string $message Optional message to display
- * @param string $type Message type
- */
-function redirect($page, $message = '', $type = 'info') {
-    if (!empty($message)) {
-        session_start();
-        $_SESSION['message'] = $message;
-        $_SESSION['message_type'] = $type;
-    }
-    header("Location: {$page}");
-    exit();
+// Add new customer
+function addCustomer($db, $data) {
+    $sql = "INSERT INTO customers (first_name, last_name, address, city, phone, email) 
+            VALUES (?, ?, ?, ?, ?, ?)";
+    $stmt = $db->prepare($sql);
+    return $stmt->execute([
+        clean($data['first_name']),
+        clean($data['last_name']),
+        clean($data['address']),
+        clean($data['city']),
+        clean($data['phone']),
+        clean($data['email'])
+    ]);
+}
+
+// Update customer
+function updateCustomer($db, $id, $data) {
+    $sql = "UPDATE customers SET 
+            first_name = ?, last_name = ?, address = ?, 
+            city = ?, phone = ?, email = ? 
+            WHERE id = ?";
+    $stmt = $db->prepare($sql);
+    return $stmt->execute([
+        clean($data['first_name']),
+        clean($data['last_name']),
+        clean($data['address']),
+        clean($data['city']),
+        clean($data['phone']),
+        clean($data['email']),
+        $id
+    ]);
+}
+
+// Delete customer
+function deleteCustomer($db, $id) {
+    $stmt = $db->prepare("DELETE FROM customers WHERE id = ?");
+    return $stmt->execute([$id]);
 }
 ?>
